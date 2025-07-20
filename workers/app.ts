@@ -1,16 +1,19 @@
 import { zValidator } from "@hono/zod-validator"
-import { eq, like, or } from "drizzle-orm"
 import { Hono } from "hono"
 import { createRequestHandler } from "react-router"
 import { z } from "zod"
 import { createDb } from "./db"
-import { contacts, insertContactSchema, patchContactSchema } from "./db/schema"
+import { insertContactSchema, patchContactSchema } from "./db/schema"
+import { ContactsService } from "./services/contacts.service"
 
 declare module "react-router" {
 	export interface AppLoadContext {
 		cloudflare: {
 			env: Env
 			ctx: ExecutionContext
+		}
+		services: {
+			contacts: ContactsService
 		}
 	}
 }
@@ -24,6 +27,7 @@ type AppEnv = {
 	Bindings: Env
 	Variables: {
 		db: ReturnType<typeof createDb>
+		contactsService: ContactsService
 	}
 }
 
@@ -33,7 +37,7 @@ const app = new Hono<AppEnv>()
 // Create API router
 const api = new Hono<AppEnv>()
 
-// Middleware to inject database
+// Middleware to inject database and services
 api.use("*", async (c, next) => {
 	// Get D1 database from environment bindings
 	const d1 = c.env.DB
@@ -42,6 +46,7 @@ api.use("*", async (c, next) => {
 	}
 	const db = createDb(d1)
 	c.set("db", db)
+	c.set("contactsService", new ContactsService(db))
 	await next()
 })
 
@@ -49,8 +54,8 @@ api.use("*", async (c, next) => {
 const contactsRoute = api
 	// List all contacts
 	.get("/contacts", async (c) => {
-		const db = c.get("db")
-		const allContacts = await db.select().from(contacts).orderBy(contacts.createdAt)
+		const contactsService = c.get("contactsService")
+		const allContacts = await contactsService.getAll()
 
 		return c.json({
 			contacts: allContacts,
@@ -61,23 +66,10 @@ const contactsRoute = api
 		"/contacts/search",
 		zValidator("query", z.object({ q: z.string().optional() })),
 		async (c) => {
-			const db = c.get("db")
+			const contactsService = c.get("contactsService")
 			const { q } = c.req.valid("query")
 
-			const results = await (q
-				? db
-						.select()
-						.from(contacts)
-						.where(
-							or(
-								like(contacts.firstName, `%${q}%`),
-								like(contacts.lastName, `%${q}%`),
-								like(contacts.email, `%${q}%`),
-								like(contacts.phone, `%${q}%`),
-							),
-						)
-						.orderBy(contacts.createdAt)
-				: db.select().from(contacts).orderBy(contacts.createdAt))
+			const results = await contactsService.search(q || "")
 
 			return c.json({
 				contacts: results,
@@ -86,12 +78,11 @@ const contactsRoute = api
 	)
 	// Create a contact
 	.post("/contacts", zValidator("json", insertContactSchema), async (c) => {
-		const db = c.get("db")
+		const contactsService = c.get("contactsService")
 		const contactData = c.req.valid("json")
 
 		try {
-			const result = await db.insert(contacts).values(contactData).returning()
-			const newContact = result[0]
+			const newContact = await contactsService.create(contactData)
 
 			return c.json(
 				{
@@ -100,22 +91,18 @@ const contactsRoute = api
 				200,
 			)
 		} catch (error) {
-			if (error instanceof Error && error.message.includes("UNIQUE constraint failed")) {
-				return c.json({ error: "Email already exists" }, 400)
+			if (error instanceof Error && error.message === "Email already exists") {
+				return c.json({ error: error.message }, 400)
 			}
 			throw error
 		}
 	})
 	// Get a single contact
 	.get("/contacts/:id", zValidator("param", z.object({ id: z.string() })), async (c) => {
-		const db = c.get("db")
+		const contactsService = c.get("contactsService")
 		const { id } = c.req.valid("param")
 
-		const contact = await db
-			.select()
-			.from(contacts)
-			.where(eq(contacts.id, Number(id)))
-			.get()
+		const contact = await contactsService.getById(Number(id))
 
 		if (!contact) {
 			return c.json({ message: "Contact not found" }, 404)
@@ -129,26 +116,21 @@ const contactsRoute = api
 		zValidator("param", z.object({ id: z.string() })),
 		zValidator("json", patchContactSchema),
 		async (c) => {
-			const db = c.get("db")
+			const contactsService = c.get("contactsService")
 			const { id } = c.req.valid("param")
 			const updates = c.req.valid("json")
 
 			try {
-				const result = await db
-					.update(contacts)
-					.set(updates)
-					.where(eq(contacts.id, Number(id)))
-					.returning()
+				const updatedContact = await contactsService.update(Number(id), updates)
 
-				if (result.length === 0) {
+				if (!updatedContact) {
 					return c.json({ message: "Contact not found" }, 404)
 				}
 
-				const updatedContact = result[0]
 				return c.json(updatedContact, 200)
 			} catch (error) {
-				if (error instanceof Error && error.message.includes("UNIQUE constraint failed")) {
-					return c.json({ error: "Email already exists" }, 400)
+				if (error instanceof Error && error.message === "Email already exists") {
+					return c.json({ error: error.message }, 400)
 				}
 				throw error
 			}
@@ -156,15 +138,12 @@ const contactsRoute = api
 	)
 	// Delete a contact
 	.delete("/contacts/:id", zValidator("param", z.object({ id: z.string() })), async (c) => {
-		const db = c.get("db")
+		const contactsService = c.get("contactsService")
 		const { id } = c.req.valid("param")
 
-		const result = await db
-			.delete(contacts)
-			.where(eq(contacts.id, Number(id)))
-			.returning()
+		const deleted = await contactsService.delete(Number(id))
 
-		if (result.length === 0) {
+		if (!deleted) {
 			return c.json({ message: "Contact not found" }, 404)
 		}
 
@@ -176,8 +155,19 @@ app.route("/api", api)
 
 // React Router handler for all other routes
 app.all("*", (c) => {
+	// Create database and services for React Router loaders
+	const d1 = c.env.DB
+	if (!d1) {
+		throw new Error("D1 database not found in environment")
+	}
+	const db = createDb(d1)
+	const contactsService = new ContactsService(db)
+	
 	return requestHandler(c.req.raw, {
 		cloudflare: { env: c.env, ctx: c.executionCtx as ExecutionContext },
+		services: {
+			contacts: contactsService,
+		},
 	})
 })
 
