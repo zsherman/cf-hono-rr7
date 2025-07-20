@@ -11,4 +11,9 @@ export default defineConfig({
 		reactRouter(),
 		tsconfigPaths(),
 	],
+	server: {
+		warmup: {
+			clientFiles: ["./app/entry.client.tsx"],
+		},
+	},
 })

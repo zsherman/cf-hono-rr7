@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form"
 import type { InferResponseType } from "hono/client"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { ContactSkeleton } from "../components/ContactSkeleton"
 import { client } from "../lib/api-client"
 import { contactFormSchema } from "../schemas/contact"
@@ -18,7 +18,6 @@ export function meta(_args: Route.MetaArgs) {
 
 // Infer types from API responses
 type ContactsResponse = InferResponseType<typeof client.contacts.$get>
-type ContactResponse = InferResponseType<typeof client.contacts.$post>
 type Contact = ContactsResponse["contacts"][0]
 
 const mockContacts = [
@@ -48,12 +47,7 @@ export default function Home() {
 	const [error, setError] = useState<string | null>(null)
 	const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
 
-	// Fetch contacts on mount
-	useEffect(() => {
-		fetchContacts()
-	}, [])
-
-	const fetchContacts = async (query = "") => {
+	const fetchContacts = useCallback(async (query = "") => {
 		if (query) {
 			setIsSearching(true)
 		} else {
@@ -79,7 +73,12 @@ export default function Home() {
 			setIsSearching(false)
 			setIsInitialLoad(false)
 		}
-	}
+	}, [])
+
+	// Fetch contacts on mount
+	useEffect(() => {
+		fetchContacts()
+	}, [fetchContacts])
 
 	// Handle search
 	useEffect(() => {
@@ -88,7 +87,7 @@ export default function Home() {
 		}, 300)
 
 		return () => clearTimeout(debounceTimer)
-	}, [searchQuery])
+	}, [searchQuery, fetchContacts])
 
 	// Contact form
 	const form = useForm({
@@ -158,6 +157,8 @@ export default function Home() {
 		form.setFieldValue("lastName", randomMock.lastName)
 		form.setFieldValue("email", randomMock.email)
 		form.setFieldValue("phone", randomMock.phone || "")
+		// Validate all fields to clear any existing errors
+		form.validateAllFields("change")
 	}
 
 	return (
@@ -196,7 +197,8 @@ export default function Home() {
 							<form.Field
 								name="firstName"
 								validators={{
-									onChange: ({ value }) => (!value ? "First name is required" : undefined),
+									onChange: contactFormSchema.shape.firstName,
+									onBlur: contactFormSchema.shape.firstName,
 								}}
 							>
 								{(field) => (
@@ -216,9 +218,9 @@ export default function Home() {
 											onBlur={field.handleBlur}
 											className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
 										/>
-										{field.state.meta.errors && (
+										{field.state.meta.errors && field.state.meta.errors.length > 0 && (
 											<p className="mt-1 text-sm text-red-600">
-												{field.state.meta.errors.join(", ")}
+												{[...new Set(field.state.meta.errors)].join(", ")}
 											</p>
 										)}
 									</div>
@@ -228,7 +230,8 @@ export default function Home() {
 							<form.Field
 								name="lastName"
 								validators={{
-									onChange: ({ value }) => (!value ? "Last name is required" : undefined),
+									onChange: contactFormSchema.shape.lastName,
+									onBlur: contactFormSchema.shape.lastName,
 								}}
 							>
 								{(field) => (
@@ -248,9 +251,9 @@ export default function Home() {
 											onBlur={field.handleBlur}
 											className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
 										/>
-										{field.state.meta.errors && (
+										{field.state.meta.errors && field.state.meta.errors.length > 0 && (
 											<p className="mt-1 text-sm text-red-600">
-												{field.state.meta.errors.join(", ")}
+												{[...new Set(field.state.meta.errors)].join(", ")}
 											</p>
 										)}
 									</div>
@@ -260,13 +263,8 @@ export default function Home() {
 							<form.Field
 								name="email"
 								validators={{
-									onChange: ({ value }) => {
-										if (!value) return "Email is required"
-										if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-											return "Invalid email address"
-										}
-										return undefined
-									},
+									onChange: contactFormSchema.shape.email,
+									onBlur: contactFormSchema.shape.email,
 								}}
 							>
 								{(field) => (
@@ -286,9 +284,9 @@ export default function Home() {
 											onBlur={field.handleBlur}
 											className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
 										/>
-										{field.state.meta.errors && (
+										{field.state.meta.errors && field.state.meta.errors.length > 0 && (
 											<p className="mt-1 text-sm text-red-600">
-												{field.state.meta.errors.join(", ")}
+												{[...new Set(field.state.meta.errors)].join(", ")}
 											</p>
 										)}
 									</div>
@@ -350,6 +348,7 @@ export default function Home() {
 											xmlns="http://www.w3.org/2000/svg"
 											fill="none"
 											viewBox="0 0 24 24"
+											aria-label="Searching"
 										>
 											<circle
 												className="opacity-25"
@@ -394,6 +393,7 @@ export default function Home() {
 										xmlns="http://www.w3.org/2000/svg"
 										fill="none"
 										viewBox="0 0 24 24"
+										aria-label="Loading"
 									>
 										<circle
 											className="opacity-25"

@@ -9,23 +9,25 @@ This is a full-stack web application template combining React-Router (frontend) 
 ## Common Commands
 
 ### Development
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build production-ready application
-- `npm run preview` - Preview production build locally
-- `npm run typecheck` - Run TypeScript type checking
-- `npm run deploy` - Build and deploy to Cloudflare Workers
+- `pnpm dev` - Start development server with hot reload
+- `pnpm build` - Build production-ready application
+- `pnpm preview` - Preview production build locally
+- `pnpm typecheck` - Run TypeScript type checking
+- `pnpm deploy` - Build and deploy to Cloudflare Workers
 
 ### Code Quality
-- `npm run format` - Format all files with Biome
-- `npm run format:check` - Check formatting without making changes
-- `npm run lint` - Run Biome linter
-- `npm run lint:fix` - Fix linting issues automatically
-- `npm run check` - Run both formatting and linting checks
-- `npm run check:fix` - Fix both formatting and linting issues
+- `pnpm format` - Format all files with Biome
+- `pnpm format:check` - Check formatting without making changes
+- `pnpm lint` - Run Biome linter
+- `pnpm lint:fix` - Fix linting issues automatically
+- `pnpm lint:fix:unsafe` - Fix linting issues including unsafe fixes
+- `pnpm check` - Run both formatting and linting checks
+- `pnpm check:fix` - Fix both formatting and linting issues
+- `pnpm check:fix:unsafe` - Fix both formatting and linting issues including unsafe fixes
 
 ### Type Generation
-- `npm run cf-typegen` - Generate Cloudflare Worker TypeScript types
-- This runs automatically after `npm install`
+- `pnpm cf-typegen` - Generate Cloudflare Worker TypeScript types
+- This runs automatically after `pnpm install`
 
 ## Architecture
 
@@ -74,13 +76,13 @@ app.get('/api/example', async (c) => {
 - Strict mode enabled
 - Cloudflare Worker types auto-generated
 - React-Router route types auto-generated
-- Run `npm run typecheck` before committing
+- Run `pnpm typecheck` before committing
 
 ## Important Notes
 
 - No test framework is currently configured
 - Code formatting and linting handled by Biome
 - VSCode configured for format on save with Biome
-- Uses npm as package manager (remove pnpm-lock.yaml if present)
+- Uses pnpm as package manager
 - Tailwind CSS v4 with new @theme directive
 - Built for Cloudflare's edge runtime - be mindful of API limitations
