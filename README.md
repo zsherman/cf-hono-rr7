@@ -50,6 +50,14 @@ Visit:
 
 ## Architecture Overview
 
+### Server-Side Data Loading
+
+React Router loaders can use the Hono RPC client for SSR by providing the full URL from the request context. See `app/routes/home-with-loader.tsx` for an example that demonstrates:
+- Creating a server-aware RPC client that detects SSR context
+- Using the request object to construct full URLs during SSR
+- Falling back to relative URLs on the client side
+- Maintaining full type safety with the Hono RPC client
+
 ### Backend (Hono + OpenAPI)
 
 The backend uses Hono with OpenAPI for type-safe API development:
