@@ -50,6 +50,14 @@ Visit:
 
 ## Architecture Overview
 
+### Known Limitations
+
+**Server-Side Data Loading**: React Router's loaders run on the server and cannot directly use the Hono RPC client (which makes HTTP requests). Currently, data must be loaded client-side using `useEffect`. For true SSR data loading, you would need to:
+- Access the database directly in loaders using the D1 binding
+- Or make internal API calls using the request context
+
+This template prioritizes simplicity and uses client-side data loading for now.
+
 ### Backend (Hono + OpenAPI)
 
 The backend uses Hono with OpenAPI for type-safe API development:

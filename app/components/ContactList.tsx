@@ -1,3 +1,4 @@
+import { Link } from "react-router"
 import type { Contact } from "../../workers/db/schema"
 import { ContactSkeleton } from "./ContactSkeleton"
 
@@ -90,9 +91,12 @@ export function ContactList({
 							{contacts.map((contact) => (
 								<tr key={contact.id} className="hover:bg-gray-50">
 									<td className="px-6 py-4 whitespace-nowrap">
-										<div className="text-sm font-medium text-gray-900">
+										<Link
+											to={`/contacts/${contact.id}`}
+											className="text-sm font-medium text-blue-600 hover:text-blue-800"
+										>
 											{contact.firstName} {contact.lastName}
-										</div>
+										</Link>
 									</td>
 									<td className="px-6 py-4 whitespace-nowrap">
 										<div className="text-sm text-gray-500">{contact.email}</div>
