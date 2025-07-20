@@ -1,10 +1,16 @@
-import { useForm } from "@tanstack/react-form"
 import { randFirstName, randLastName } from "@ngneat/falso"
-import { useCallback, useEffect, useState } from "react"
-import type { Contact } from "../../workers/db/schema"
+import { useForm } from "@tanstack/react-form"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { InferRequestType, InferResponseType } from "hono/client"
+import { useEffect, useState } from "react"
+import { insertContactSchema } from "../../workers/db/schema"
 import { ContactForm, ContactList, ContactStats, ErrorAlert, SearchBar } from "../components"
 import { extractError, rpcClient } from "../lib/hono-rpc-client"
 import type { Route } from "./+types/home"
+
+// Infer types from the API client
+type ContactsResponse = InferResponseType<typeof rpcClient.contacts.$get>
+type CreateContactRequest = InferRequestType<typeof rpcClient.contacts.$post>["json"]
 
 export function meta(_args: Route.MetaArgs) {
 	return [
@@ -16,57 +22,58 @@ export function meta(_args: Route.MetaArgs) {
 	]
 }
 
-
 export default function Home() {
-	const [contacts, setContacts] = useState<Contact[]>([])
 	const [searchQuery, setSearchQuery] = useState("")
-	const [isLoading, setIsLoading] = useState(false)
-	const [isInitialLoad, setIsInitialLoad] = useState(true)
-	const [isSearching, setIsSearching] = useState(false)
-	const [error, setError] = useState<string | null>(null)
+	const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
 	const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+	const queryClient = useQueryClient()
 
-	const fetchContacts = useCallback(async (query = "") => {
-		if (query) {
-			setIsSearching(true)
-		} else {
-			setIsLoading(true)
-		}
-		setError(null)
-		try {
-			const response = query
-				? await rpcClient.contacts.search.$get({ query: { q: query } })
+	// Debounce search query
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			setDebouncedSearchQuery(searchQuery)
+		}, 300)
+
+		return () => clearTimeout(timer)
+	}, [searchQuery])
+
+	// Fetch contacts with React Query
+	const { data, isLoading, isInitialLoading, error } = useQuery({
+		queryKey: ["contacts", debouncedSearchQuery],
+		queryFn: async () => {
+			const response = debouncedSearchQuery
+				? await rpcClient.contacts.search.$get({ query: { q: debouncedSearchQuery } })
 				: await rpcClient.contacts.$get()
 
 			if (!response.ok) {
 				throw new Error(await extractError(response))
 			}
 
-			const data = await response.json()
-			setContacts(data.contacts || [])
-		} catch (err) {
-			setError("Failed to fetch contacts")
-			console.error(err)
-		} finally {
-			setIsLoading(false)
-			setIsSearching(false)
-			setIsInitialLoad(false)
-		}
-	}, [])
+			const data = (await response.json()) as Awaited<ContactsResponse>
+			return data.contacts || []
+		},
+	})
 
-	// Fetch contacts on mount
-	useEffect(() => {
-		fetchContacts()
-	}, [fetchContacts])
+	const contacts = data || []
 
-	// Handle search
-	useEffect(() => {
-		const debounceTimer = setTimeout(() => {
-			fetchContacts(searchQuery)
-		}, 300)
+	// Create contact mutation
+	const createContactMutation = useMutation({
+		mutationFn: async (value: CreateContactRequest) => {
+			const response = await rpcClient.contacts.$post({
+				json: value,
+			})
 
-		return () => clearTimeout(debounceTimer)
-	}, [searchQuery, fetchContacts])
+			if (!response.ok) {
+				throw new Error(await extractError(response))
+			}
+
+			return await response.json()
+		},
+		onSuccess: () => {
+			// Invalidate and refetch contacts
+			queryClient.invalidateQueries({ queryKey: ["contacts"] })
+		},
+	})
 
 	// Contact form
 	const form = useForm({
@@ -74,42 +81,21 @@ export default function Home() {
 			firstName: "",
 			lastName: "",
 			email: "",
-			phone: "",
+			phone: null,
+		} as CreateContactRequest,
+		validators: {
+			onChange: insertContactSchema,
 		},
-		onSubmit: async ({ value }) => {
-			setError(null)
-			try {
-				const response = await rpcClient.contacts.$post({
-					json: {
-						...value,
-						phone: value.phone || null,
-					},
-				})
-
-				if (!response.ok) {
-					throw new Error(await extractError(response))
-				}
-
-				const data = await response.json()
-				setContacts([data.contact, ...contacts])
-				form.reset()
-			} catch (err) {
-				if (err instanceof Error) {
-					setError(err.message)
-				} else if (typeof err === 'string') {
-					setError(err)
-				} else {
-					setError("Failed to add contact")
-				}
-			}
+		onSubmit: async ({ formApi, value }) => {
+			await createContactMutation.mutateAsync(value)
+			// Reset form on success
+			formApi.reset()
 		},
 	})
 
-	const handleDelete = async (id: number) => {
-		if (!confirm("Are you sure you want to delete this contact?")) return
-
-		setDeletingIds((prev) => new Set(prev).add(id.toString()))
-		try {
+	// Delete contact mutation
+	const deleteContactMutation = useMutation({
+		mutationFn: async (id: number) => {
 			const response = await rpcClient.contacts[":id"].$delete({
 				param: { id: id.toString() },
 			})
@@ -118,37 +104,51 @@ export default function Home() {
 				throw new Error(await extractError(response))
 			}
 
-			setContacts(contacts.filter((c) => c.id !== id))
-		} catch (err) {
-			setError("Failed to delete contact")
-			console.error(err)
-		} finally {
+			return id
+		},
+		onMutate: async (id) => {
+			// Add to deleting set
+			setDeletingIds((prev) => new Set(prev).add(id.toString()))
+		},
+		onSuccess: () => {
+			// Invalidate and refetch contacts
+			queryClient.invalidateQueries({ queryKey: ["contacts"] })
+		},
+		onSettled: (_data, _error, id) => {
+			// Remove from deleting set
 			setDeletingIds((prev) => {
 				const newSet = new Set(prev)
 				newSet.delete(id.toString())
 				return newSet
 			})
-		}
+		},
+	})
+
+	const handleDelete = async (id: number) => {
+		deleteContactMutation.mutate(id)
 	}
 
 	const fillWithMockData = () => {
 		const firstName = randFirstName()
 		const lastName = randLastName()
 		// Remove any non-ASCII characters and generate a simple email
-		const cleanFirstName = firstName.toLowerCase().replace(/[^a-z]/g, '')
-		const cleanLastName = lastName.toLowerCase().replace(/[^a-z]/g, '')
+		const cleanFirstName = firstName.toLowerCase().replace(/[^a-z]/g, "")
+		const cleanLastName = lastName.toLowerCase().replace(/[^a-z]/g, "")
 		const randomNum = Math.floor(Math.random() * 100)
 		const email = `${cleanFirstName}.${cleanLastName}${randomNum}@example.com`
 		// Generate phone number in format: 555-0123
-		const phoneDigits = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
+		const phoneDigits = Math.floor(Math.random() * 10000)
+			.toString()
+			.padStart(4, "0")
 		const phone = `555-${phoneDigits}`
-		
-		form.setFieldValue("firstName", firstName)
-		form.setFieldValue("lastName", lastName)
-		form.setFieldValue("email", email)
-		form.setFieldValue("phone", phone)
-		// Validate all fields to clear any existing errors
-		form.validateAllFields("change")
+
+		// Reset form with new values to clear all errors and touched states
+		form.reset({
+			firstName,
+			lastName,
+			email,
+			phone,
+		} as CreateContactRequest)
 	}
 
 	return (
@@ -157,7 +157,13 @@ export default function Home() {
 				<h1 className="text-3xl font-bold text-gray-900 mb-8">Contact Management</h1>
 
 				{/* Error display */}
-				{error && <ErrorAlert error={error} />}
+				{error && <ErrorAlert error={error.message || "Failed to load contacts"} />}
+				{createContactMutation.error && (
+					<ErrorAlert error={createContactMutation.error.message || "Failed to create contact"} />
+				)}
+				{deleteContactMutation.error && (
+					<ErrorAlert error={deleteContactMutation.error.message || "Failed to delete contact"} />
+				)}
 
 				<div className="grid gap-8 md:grid-cols-2">
 					{/* Add Contact Form */}
@@ -168,7 +174,7 @@ export default function Home() {
 						<SearchBar
 							searchQuery={searchQuery}
 							onSearchChange={setSearchQuery}
-							isSearching={isSearching}
+							isSearching={isLoading && searchQuery !== ""}
 						/>
 						<ContactStats totalContacts={contacts.length} />
 					</div>
@@ -178,8 +184,8 @@ export default function Home() {
 				<ContactList
 					contacts={contacts}
 					isLoading={isLoading}
-					isInitialLoad={isInitialLoad}
-					isSearching={isSearching}
+					isInitialLoad={isInitialLoading}
+					isSearching={isLoading && searchQuery !== ""}
 					searchQuery={searchQuery}
 					deletingIds={deletingIds}
 					onDelete={handleDelete}

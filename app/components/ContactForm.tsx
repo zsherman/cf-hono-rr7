@@ -1,15 +1,7 @@
-import type { FormApi } from "@tanstack/react-form"
-import { contactFormSchema } from "../schemas/contact"
-
-interface ContactFormValues {
-	firstName: string
-	lastName: string
-	email: string
-	phone: string
-}
+import type { AnyFieldApi } from "@tanstack/react-form"
 
 interface ContactFormProps {
-	form: FormApi<ContactFormValues, undefined>
+	form: any // Let TypeScript infer from useForm
 	onFillMockData: () => void
 }
 
@@ -34,20 +26,8 @@ export function ContactForm({ form, onFillMockData }: ContactFormProps) {
 				}}
 				className="space-y-4"
 			>
-				<form.Field
-					name="firstName"
-					validators={{
-						onChange: ({ value }) => {
-							const result = contactFormSchema.shape.firstName.safeParse(value)
-							return result.success ? undefined : result.error.errors[0]?.message
-						},
-						onBlur: ({ value }) => {
-							const result = contactFormSchema.shape.firstName.safeParse(value)
-							return result.success ? undefined : result.error.errors[0]?.message
-						},
-					}}
-				>
-					{(field) => (
+				<form.Field name="firstName">
+					{(field: AnyFieldApi) => (
 						<div>
 							<label htmlFor={field.name} className="block text-sm font-medium text-gray-700 mb-1">
 								First Name *
@@ -61,29 +41,26 @@ export function ContactForm({ form, onFillMockData }: ContactFormProps) {
 								onBlur={field.handleBlur}
 								className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
 							/>
-							{field.state.meta.errors && field.state.meta.errors.length > 0 && (
-								<p className="mt-1 text-sm text-red-600">
-									{field.state.meta.errors[0]}
-								</p>
-							)}
+							{field.state.meta.isTouched &&
+								field.state.meta.errors &&
+								field.state.meta.errors.length > 0 && (
+									<p className="mt-1 text-sm text-red-600">
+										{field.state.meta.errors
+											.map((err: any) => {
+												// Handle both string errors and object errors
+												if (typeof err === "string") return err
+												if (err?.message) return err.message
+												return "Invalid value"
+											})
+											.join(", ")}
+									</p>
+								)}
 						</div>
 					)}
 				</form.Field>
 
-				<form.Field
-					name="lastName"
-					validators={{
-						onChange: ({ value }) => {
-							const result = contactFormSchema.shape.lastName.safeParse(value)
-							return result.success ? undefined : result.error.errors[0]?.message
-						},
-						onBlur: ({ value }) => {
-							const result = contactFormSchema.shape.lastName.safeParse(value)
-							return result.success ? undefined : result.error.errors[0]?.message
-						},
-					}}
-				>
-					{(field) => (
+				<form.Field name="lastName">
+					{(field: AnyFieldApi) => (
 						<div>
 							<label htmlFor={field.name} className="block text-sm font-medium text-gray-700 mb-1">
 								Last Name *
@@ -97,29 +74,26 @@ export function ContactForm({ form, onFillMockData }: ContactFormProps) {
 								onBlur={field.handleBlur}
 								className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
 							/>
-							{field.state.meta.errors && field.state.meta.errors.length > 0 && (
-								<p className="mt-1 text-sm text-red-600">
-									{field.state.meta.errors[0]}
-								</p>
-							)}
+							{field.state.meta.isTouched &&
+								field.state.meta.errors &&
+								field.state.meta.errors.length > 0 && (
+									<p className="mt-1 text-sm text-red-600">
+										{field.state.meta.errors
+											.map((err: any) => {
+												// Handle both string errors and object errors
+												if (typeof err === "string") return err
+												if (err?.message) return err.message
+												return "Invalid value"
+											})
+											.join(", ")}
+									</p>
+								)}
 						</div>
 					)}
 				</form.Field>
 
-				<form.Field
-					name="email"
-					validators={{
-						onChange: ({ value }) => {
-							const result = contactFormSchema.shape.email.safeParse(value)
-							return result.success ? undefined : result.error.errors[0]?.message
-						},
-						onBlur: ({ value }) => {
-							const result = contactFormSchema.shape.email.safeParse(value)
-							return result.success ? undefined : result.error.errors[0]?.message
-						},
-					}}
-				>
-					{(field) => (
+				<form.Field name="email">
+					{(field: AnyFieldApi) => (
 						<div>
 							<label htmlFor={field.name} className="block text-sm font-medium text-gray-700 mb-1">
 								Email *
@@ -133,17 +107,26 @@ export function ContactForm({ form, onFillMockData }: ContactFormProps) {
 								onBlur={field.handleBlur}
 								className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
 							/>
-							{field.state.meta.errors && field.state.meta.errors.length > 0 && (
-								<p className="mt-1 text-sm text-red-600">
-									{field.state.meta.errors[0]}
-								</p>
-							)}
+							{field.state.meta.isTouched &&
+								field.state.meta.errors &&
+								field.state.meta.errors.length > 0 && (
+									<p className="mt-1 text-sm text-red-600">
+										{field.state.meta.errors
+											.map((err: any) => {
+												// Handle both string errors and object errors
+												if (typeof err === "string") return err
+												if (err?.message) return err.message
+												return "Invalid value"
+											})
+											.join(", ")}
+									</p>
+								)}
 						</div>
 					)}
 				</form.Field>
 
 				<form.Field name="phone">
-					{(field) => (
+					{(field: AnyFieldApi) => (
 						<div>
 							<label htmlFor={field.name} className="block text-sm font-medium text-gray-700 mb-1">
 								Phone
@@ -152,8 +135,8 @@ export function ContactForm({ form, onFillMockData }: ContactFormProps) {
 								id={field.name}
 								name={field.name}
 								type="tel"
-								value={field.state.value}
-								onChange={(e) => field.handleChange(e.target.value)}
+								value={field.state.value || ""}
+								onChange={(e) => field.handleChange(e.target.value || null)}
 								onBlur={field.handleBlur}
 								className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
 							/>
@@ -161,8 +144,8 @@ export function ContactForm({ form, onFillMockData }: ContactFormProps) {
 					)}
 				</form.Field>
 
-				<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
-					{([canSubmit, isSubmitting]) => (
+				<form.Subscribe selector={(state: any) => [state.canSubmit, state.isSubmitting]}>
+					{([canSubmit, isSubmitting]: [boolean, boolean]) => (
 						<button
 							type="submit"
 							disabled={!canSubmit}

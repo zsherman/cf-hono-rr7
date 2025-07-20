@@ -1,7 +1,27 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
-
+import { lazy, Suspense, useState, useEffect } from "react"
 import type { Route } from "./+types/root"
 import "./app.css"
+
+// Lazy load React Query DevTools to prevent SSR issues
+const ReactQueryDevtools = import.meta.env.DEV
+	? lazy(() =>
+			import("@tanstack/react-query-devtools").then((mod) => ({
+				default: mod.ReactQueryDevtools,
+			})),
+		)
+	: () => null
+
+// Create a client
+const queryClient = new QueryClient({
+	defaultOptions: {
+		queries: {
+			// Stale time of 1 minute
+			staleTime: 60 * 1000,
+		},
+	},
+})
 
 export const links: Route.LinksFunction = () => [
 	{ rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -35,7 +55,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-	return <Outlet />
+	const [mounted, setMounted] = useState(false)
+
+	// Only render DevTools after hydration
+	useEffect(() => {
+		setMounted(true)
+	}, [])
+
+	return (
+		<QueryClientProvider client={queryClient}>
+			<Outlet />
+			{import.meta.env.DEV && mounted && (
+				<Suspense fallback={null}>
+					<ReactQueryDevtools initialIsOpen={false} />
+				</Suspense>
+			)}
+		</QueryClientProvider>
+	)
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

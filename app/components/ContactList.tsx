@@ -1,8 +1,18 @@
-import type { Contact } from "../../workers/db/schema"
 import { ContactSkeleton } from "./ContactSkeleton"
 
+// API returns dates as strings due to JSON serialization
+interface ContactFromAPI {
+	id: number
+	firstName: string
+	lastName: string
+	email: string
+	phone: string | null
+	createdAt: string
+	updatedAt: string
+}
+
 interface ContactListProps {
-	contacts: Contact[]
+	contacts: ContactFromAPI[]
 	isLoading: boolean
 	isInitialLoad: boolean
 	isSearching: boolean
@@ -102,9 +112,7 @@ export function ContactList({
 									</td>
 									<td className="px-6 py-4 whitespace-nowrap">
 										<div className="text-sm text-gray-500">
-											{contact.createdAt instanceof Date 
-												? contact.createdAt.toLocaleDateString()
-												: new Date(contact.createdAt).toLocaleDateString()}
+											{new Date(contact.createdAt).toLocaleDateString()}
 										</div>
 									</td>
 									<td className="px-6 py-4 whitespace-nowrap text-sm">
