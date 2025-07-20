@@ -17,11 +17,19 @@
 		"check:fix:unsafe": "biome check --write --unsafe .",
 		"postinstall": "pnpm cf-typegen",
 		"preview": "pnpm build && vite preview",
-		"typecheck": "pnpm cf-typegen && react-router typegen && tsc -b"
+		"typecheck": "pnpm cf-typegen && react-router typegen && tsc -b",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:push": "drizzle-kit push",
+		"db:studio": "drizzle-kit studio"
 	},
 	"dependencies": {
+		"@hono/zod-validator": "^0.7.2",
+		"@ngneat/falso": "^8.0.2",
 		"@tanstack/react-form": "^1.14.1",
 		"@tanstack/react-table": "^8.21.3",
+		"drizzle-orm": "^0.44.3",
+		"drizzle-zod": "^0.8.2",
 		"hono": "^4.7.11",
 		"isbot": "^5.1.27",
 		"react": "^19.1.0",
@@ -37,6 +45,7 @@
 		"@types/node": "^20",
 		"@types/react": "^19.1.2",
 		"@types/react-dom": "^19.1.2",
+		"drizzle-kit": "^0.31.4",
 		"tailwindcss": "^4.1.4",
 		"typescript": "^5.8.3",
 		"vite": "^7.0.5",

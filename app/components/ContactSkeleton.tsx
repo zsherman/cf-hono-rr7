@@ -23,7 +23,8 @@ export function ContactSkeleton() {
 				</thead>
 				<tbody className="bg-white divide-y divide-gray-200">
 					{[...Array(5)].map((_, index) => (
-						<tr key={`skeleton-row-${index}`}>
+						// biome-ignore lint/suspicious/noArrayIndexKey: Skeleton rows are static and don't change
+						<tr key={index}>
 							<td className="px-6 py-4 whitespace-nowrap">
 								<div className="h-4 bg-gray-200 rounded w-32"></div>
 							</td>

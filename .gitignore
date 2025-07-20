@@ -12,3 +12,9 @@ node_modules/.vite
 .wrangler
 .dev.vars*
 
+# Database
+*.db
+*.db-journal
+/drizzle
+
+/demos

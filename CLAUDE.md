@@ -78,6 +78,23 @@ app.get('/api/example', async (c) => {
 - React-Router route types auto-generated
 - Run `pnpm typecheck` before committing
 
+## Database Setup
+
+### Local Development
+1. Create a local D1 database: `wrangler d1 create contacts-db --local`
+2. Execute the schema: `wrangler d1 execute contacts-db --local --file=./setup-local-db.sql`
+
+### Production
+1. Create a D1 database: `wrangler d1 create contacts-db`
+2. Update `wrangler.jsonc` with the database ID from the output
+3. Execute the schema: `wrangler d1 execute contacts-db --remote --file=./setup-local-db.sql`
+
+## API Documentation
+
+- OpenAPI documentation available at `/api/doc`
+- Swagger UI available at `/api/swagger`
+- All API routes are fully typed with Zod schemas
+
 ## Important Notes
 
 - No test framework is currently configured
@@ -86,3 +103,5 @@ app.get('/api/example', async (c) => {
 - Uses pnpm as package manager
 - Tailwind CSS v4 with new @theme directive
 - Built for Cloudflare's edge runtime - be mindful of API limitations
+- Uses Cloudflare D1 for database (SQLite at the edge)
+- API routes use Hono with OpenAPI/Zod for type safety and documentation
