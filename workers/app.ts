@@ -35,12 +35,12 @@ const api = new Hono<AppEnv>()
 
 // Middleware to inject database
 api.use("*", async (c, next) => {
-	// Get D1 database from environment bindings
-	const d1 = c.env.DB
-	if (!d1) {
-		throw new Error("D1 database not found in environment")
+	// Get database URL from environment bindings
+	const databaseUrl = c.env.DATABASE_URL
+	if (!databaseUrl) {
+		throw new Error("DATABASE_URL not found in environment")
 	}
-	const db = createDb(d1)
+	const db = createDb(databaseUrl)
 	c.set("db", db)
 	await next()
 })
@@ -100,7 +100,7 @@ const contactsRoute = api
 				200,
 			)
 		} catch (error) {
-			if (error instanceof Error && error.message.includes("UNIQUE constraint failed")) {
+			if (error instanceof Error && (error.message.includes("UNIQUE constraint failed") || error.message.includes("duplicate key value"))) {
 				return c.json({ error: "Email already exists" }, 400)
 			}
 			throw error
@@ -115,13 +115,13 @@ const contactsRoute = api
 			.select()
 			.from(contacts)
 			.where(eq(contacts.id, Number(id)))
-			.get()
+			.limit(1)
 
-		if (!contact) {
+		if (!contact[0]) {
 			return c.json({ message: "Contact not found" }, 404)
 		}
 
-		return c.json(contact, 200)
+		return c.json(contact[0], 200)
 	})
 	// Update a contact
 	.patch(

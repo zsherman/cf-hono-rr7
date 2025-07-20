@@ -64,7 +64,7 @@ app.get('/api/example', async (c) => {
 
 ### Adding Frontend Routes
 1. Add route files to `/app/routes/` directory
-2. React-Router uses file-based routing convention
+2. Configure routes in `/app/routes.ts` (React Router 7 uses explicit route configuration, not file-based routing)
 3. Routes automatically generate TypeScript types
 
 ### Environment Variables
@@ -80,14 +80,18 @@ app.get('/api/example', async (c) => {
 
 ## Database Setup
 
-### Local Development
-1. Create a local D1 database: `wrangler d1 create contacts-db --local`
-2. Execute the schema: `wrangler d1 execute contacts-db --local --file=./setup-local-db.sql`
+### Neon PostgreSQL Setup
+1. Create a Neon account at https://neon.tech
+2. Create a new database project
+3. Copy your database connection string
+4. Add the connection string as a secret: `wrangler secret put DATABASE_URL`
+5. For local development, create a `.dev.vars` file with: `DATABASE_URL=your_connection_string`
+6. Execute the schema: `psql $DATABASE_URL -f ./setup-neon-db.sql`
 
-### Production
-1. Create a D1 database: `wrangler d1 create contacts-db`
-2. Update `wrangler.jsonc` with the database ID from the output
-3. Execute the schema: `wrangler d1 execute contacts-db --remote --file=./setup-local-db.sql`
+### Database Migrations
+- Use `pnpm db:generate` to generate migrations from schema changes
+- Use `pnpm db:push` to push schema changes directly to database
+- Use `pnpm db:studio` to open Drizzle Studio for database management
 
 ## API Documentation
 
@@ -103,5 +107,6 @@ app.get('/api/example', async (c) => {
 - Uses pnpm as package manager
 - Tailwind CSS v4 with new @theme directive
 - Built for Cloudflare's edge runtime - be mindful of API limitations
-- Uses Cloudflare D1 for database (SQLite at the edge)
+- Uses Neon PostgreSQL for database (serverless PostgreSQL)
 - API routes use Hono with OpenAPI/Zod for type safety and documentation
+- **IMPORTANT**: In React Router loaders, you cannot use the RPC client to call your own API (worker can't call itself). Instead, access the database directly via context.cloudflare.env

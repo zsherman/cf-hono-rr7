@@ -1,18 +1,18 @@
 import { sql } from "drizzle-orm"
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core"
 import { createInsertSchema, createSelectSchema } from "drizzle-zod"
 import { z } from "zod"
 
-export const contacts = sqliteTable("contacts", {
-	id: integer("id").primaryKey({ autoIncrement: true }),
+export const contacts = pgTable("contacts", {
+	id: serial("id").primaryKey(),
 	firstName: text("first_name").notNull(),
 	lastName: text("last_name").notNull(),
 	email: text("email").notNull().unique(),
 	phone: text("phone"),
-	createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-	updatedAt: integer("updated_at", { mode: "timestamp" })
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
 		.notNull()
-		.default(sql`(unixepoch())`)
+		.defaultNow()
 		.$onUpdate(() => new Date()),
 })
 

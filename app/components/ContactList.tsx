@@ -1,3 +1,4 @@
+import { Link } from "react-router"
 import { ContactSkeleton } from "./ContactSkeleton"
 
 // API returns dates as strings due to JSON serialization
@@ -100,9 +101,12 @@ export function ContactList({
 							{contacts.map((contact) => (
 								<tr key={contact.id} className="hover:bg-gray-50">
 									<td className="px-6 py-4 whitespace-nowrap">
-										<div className="text-sm font-medium text-gray-900">
+										<Link
+											to={`/contacts/${contact.id}`}
+											className="text-sm font-medium text-blue-600 hover:text-blue-900"
+										>
 											{contact.firstName} {contact.lastName}
-										</div>
+										</Link>
 									</td>
 									<td className="px-6 py-4 whitespace-nowrap">
 										<div className="text-sm text-gray-500">{contact.email}</div>
@@ -115,7 +119,14 @@ export function ContactList({
 											{new Date(contact.createdAt).toLocaleDateString()}
 										</div>
 									</td>
-									<td className="px-6 py-4 whitespace-nowrap text-sm">
+									<td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+										<Link
+											to={`/contacts/${contact.id}`}
+											className="text-blue-600 hover:text-blue-900"
+										>
+											View
+										</Link>
+										<span className="text-gray-300">|</span>
 										<button
 											type="button"
 											onClick={() => onDelete(contact.id)}

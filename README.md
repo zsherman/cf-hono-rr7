@@ -6,7 +6,7 @@ A full-stack web application template combining React Router (frontend) with Hon
 
 - **Frontend**: React Router v7 with server-side rendering
 - **Backend**: Hono with OpenAPI/Swagger documentation
-- **Database**: Cloudflare D1 (SQLite at the edge) with Drizzle ORM
+- **Database**: Neon PostgreSQL (serverless) with Drizzle ORM
 - **Type Safety**: End-to-end TypeScript with Hono RPC type sharing
 - **API Client**: Type-safe RPC client with full IntelliSense
 - **Validation**: Zod schemas auto-generated from database schema
@@ -19,8 +19,15 @@ A full-stack web application template combining React Router (frontend) with Hon
 # Install dependencies
 pnpm install
 
-# Create local D1 database
-wrangler d1 execute contacts-db --local --file ./setup-local-db.sql
+# Set up Neon PostgreSQL
+# 1. Create account at https://neon.tech
+# 2. Create a new database
+# 3. Copy connection string to .dev.vars:
+cp .dev.vars.example .dev.vars
+# Edit .dev.vars with your connection string
+
+# Create database tables
+pnpm db:push
 
 # Start development server
 pnpm dev
@@ -69,7 +76,7 @@ The backend uses Hono with OpenAPI for type-safe API development:
 3. **Route Organization**:
    - OpenAPI route definitions in `workers/routes/`
    - Handlers in `workers/handlers/` with full type safety
-   - Access to Cloudflare bindings (D1, KV, etc.) via Hono context
+   - Access to Cloudflare bindings and environment variables via Hono context
 
 ### Frontend (React Router)
 
@@ -197,15 +204,33 @@ pnpm db:push          # Push schema changes
 pnpm db:studio        # Open Drizzle Studio
 ```
 
+### Production Deployment
+
+1. **Set up Neon Database**:
+   - Create a production database in Neon dashboard
+   - Get the pooled connection string
+
+2. **Configure Cloudflare Secret**:
+   ```bash
+   wrangler secret put DATABASE_URL
+   # Paste your Neon connection string when prompted
+   ```
+
+3. **Deploy**:
+   ```bash
+   pnpm deploy
+   ```
+
 ### Adding New Features
 
 1. **Add a Database Table**:
    ```typescript
    // workers/db/schema.ts
-   export const users = sqliteTable("users", {
-     id: integer("id").primaryKey({ autoIncrement: true }),
+   export const users = pgTable("users", {
+     id: serial("id").primaryKey(),
      name: text("name").notNull(),
      email: text("email").notNull().unique(),
+     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
    })
    
    // Zod schemas are auto-generated
@@ -270,7 +295,7 @@ pnpm db:studio        # Open Drizzle Studio
 
 4. **Database**:
    - Use Drizzle migrations for schema changes
-   - Test locally with D1 before deploying
+   - Test locally with Neon before deploying
    - Keep schema.ts as single source of truth
 
 ### Using the API Client
