@@ -9,7 +9,8 @@
 	"compatibility_flags": ["nodejs_compat"],
 	"main": "./workers/app.ts",
 	"vars": {
-		"VALUE_FROM_CLOUDFLARE": "Hello from Cloudflare, inside React Router!"
+		"VALUE_FROM_CLOUDFLARE": "Hello from Cloudflare, inside React Router!",
+		"DATABASE_URL": ""
 	},
 	"observability": {
 		"enabled": true

@@ -32,7 +32,6 @@
 		"@tanstack/react-form": "^1.14.1",
 		"@tanstack/react-query": "^5.83.0",
 		"@tanstack/react-table": "^8.21.3",
-		"@tanstack/zod-form-adapter": "^0.42.1",
 		"drizzle-orm": "^0.44.3",
 		"drizzle-zod": "^0.8.2",
 		"hono": "^4.7.11",
