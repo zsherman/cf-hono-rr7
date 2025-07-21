@@ -1,14 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "@tanstack/react-form"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { InferResponseType } from "hono/client"
 import { Link, useNavigate, useParams } from "react-router"
-import { useEffect } from "react"
-import { patchContactSchema } from "../../workers/db/schema"
-import { ErrorAlert } from "../components"
+import { toast } from "sonner"
+import type { PatchContact } from "../../workers/db/schema"
 import { extractError, rpcClient } from "../lib/hono-rpc-client"
-import type { InferRequestType } from "hono/client"
 
 // Infer types from the API client
-type UpdateContactRequest = InferRequestType<typeof rpcClient.contacts[":id"]["$patch"]>["json"]
+type ContactResponse = InferResponseType<(typeof rpcClient.contacts)[":id"]["$get"]>
 
 export default function EditContact() {
 	const { id } = useParams()
@@ -16,7 +15,11 @@ export default function EditContact() {
 	const queryClient = useQueryClient()
 
 	// Fetch existing contact data
-	const { data: contact, isLoading, error } = useQuery({
+	const {
+		data: contact,
+		isLoading,
+		error,
+	} = useQuery({
 		queryKey: ["contact", id],
 		queryFn: async () => {
 			const response = await rpcClient.contacts[":id"].$get({
@@ -34,7 +37,7 @@ export default function EditContact() {
 
 	// Update mutation
 	const updateMutation = useMutation({
-		mutationFn: async (values: UpdateContactRequest) => {
+		mutationFn: async (values: PatchContact) => {
 			const response = await rpcClient.contacts[":id"].$patch({
 				param: { id: id! },
 				json: values,
@@ -50,29 +53,32 @@ export default function EditContact() {
 			// Invalidate both the specific contact and the list
 			queryClient.invalidateQueries({ queryKey: ["contact", id] })
 			queryClient.invalidateQueries({ queryKey: ["contacts"] })
+			toast.success("Contact updated successfully!")
 			// Navigate back to the contact profile
 			navigate(`/contacts/${id}`)
 		},
+		onError: (error) => {
+			toast.error(error.message || "Failed to update contact")
+		},
 	})
 
-	// Contact form
+	// Contact form - created with initial empty values
 	const form = useForm({
 		defaultValues: {
-			firstName: "",
-			lastName: "",
-			email: "",
-			phone: null,
-		} as UpdateContactRequest,
-		validators: {
-			onChange: patchContactSchema,
+			firstName: contact?.firstName || "",
+			lastName: contact?.lastName || "",
+			email: contact?.email || "",
+			phone: contact?.phone || "",
 		},
 		onSubmit: async ({ value }) => {
+			if (!contact) return
+
 			// Only send fields that have changed
-			const changedFields: UpdateContactRequest = {}
-			if (value.firstName !== contact?.firstName) changedFields.firstName = value.firstName
-			if (value.lastName !== contact?.lastName) changedFields.lastName = value.lastName
-			if (value.email !== contact?.email) changedFields.email = value.email
-			if (value.phone !== contact?.phone) changedFields.phone = value.phone
+			const changedFields: PatchContact = {}
+			if (value.firstName !== contact.firstName) changedFields.firstName = value.firstName
+			if (value.lastName !== contact.lastName) changedFields.lastName = value.lastName
+			if (value.email !== contact.email) changedFields.email = value.email
+			if (value.phone !== contact.phone) changedFields.phone = value.phone || null
 
 			if (Object.keys(changedFields).length > 0) {
 				await updateMutation.mutateAsync(changedFields)
@@ -83,15 +89,15 @@ export default function EditContact() {
 		},
 	})
 
-	// Update form when contact data loads
-	useEffect(() => {
-		if (contact) {
-			form.setFieldValue("firstName", contact.firstName)
-			form.setFieldValue("lastName", contact.lastName)
-			form.setFieldValue("email", contact.email)
-			form.setFieldValue("phone", contact.phone)
-		}
-	}, [contact])
+	// Update form values when contact data loads
+	if (contact && !form.state.isTouched) {
+		form.reset({
+			firstName: contact.firstName || "",
+			lastName: contact.lastName || "",
+			email: contact.email || "",
+			phone: contact.phone || "",
+		})
+	}
 
 	if (isLoading) {
 		return (
@@ -133,11 +139,6 @@ export default function EditContact() {
 			<div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
 				<h1 className="text-2xl font-bold text-gray-900 mb-8">Edit Contact</h1>
 
-				{/* Error display */}
-				{updateMutation.error && (
-					<ErrorAlert error={updateMutation.error.message || "Failed to update contact"} />
-				)}
-
 				<div className="bg-white shadow sm:rounded-lg">
 					<form
 						onSubmit={(e) => {
@@ -147,63 +148,70 @@ export default function EditContact() {
 						className="p-6 space-y-6"
 					>
 						{/* First Name */}
-						<form.Field
-							name="firstName"
-							children={(field) => (
+						<form.Field name="firstName">
+							{(field) => (
 								<div>
-									<label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+									<label
+										htmlFor="firstName"
+										className="block text-sm font-medium text-gray-700 mb-1"
+									>
 										First Name
 									</label>
 									<input
 										type="text"
 										id="firstName"
-										value={field.state.value || ""}
+										value={field.state.value}
 										onChange={(e) => field.handleChange(e.target.value)}
 										onBlur={field.handleBlur}
-										className={`block w-full rounded-md shadow-sm ${
+										className={`block w-full rounded-md shadow-sm text-gray-900 ${
 											field.state.meta.errors.length > 0
 												? "border-red-300 focus:border-red-500 focus:ring-red-500"
 												: "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
 										} sm:text-sm`}
 									/>
 									{field.state.meta.errors.length > 0 && (
-										<p className="mt-1 text-sm text-red-600">{field.state.meta.errors.join(", ")}</p>
+										<p className="mt-1 text-sm text-red-600">
+											{field.state.meta.errors.join(", ")}
+										</p>
 									)}
 								</div>
 							)}
-						/>
+						</form.Field>
 
 						{/* Last Name */}
-						<form.Field
-							name="lastName"
-							children={(field) => (
+						<form.Field name="lastName">
+							{(field) => (
 								<div>
-									<label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+									<label
+										htmlFor="lastName"
+										className="block text-sm font-medium text-gray-700 mb-1"
+									>
 										Last Name
 									</label>
 									<input
 										type="text"
 										id="lastName"
-										value={field.state.value || ""}
+										value={field.state.value}
 										onChange={(e) => field.handleChange(e.target.value)}
 										onBlur={field.handleBlur}
-										className={`block w-full rounded-md shadow-sm ${
+										className={`block w-full rounded-md shadow-sm text-gray-900 ${
 											field.state.meta.errors.length > 0
 												? "border-red-300 focus:border-red-500 focus:ring-red-500"
 												: "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
 										} sm:text-sm`}
 									/>
 									{field.state.meta.errors.length > 0 && (
-										<p className="mt-1 text-sm text-red-600">{field.state.meta.errors.join(", ")}</p>
+										<p className="mt-1 text-sm text-red-600">
+											{field.state.meta.errors.join(", ")}
+										</p>
 									)}
 								</div>
 							)}
-						/>
+						</form.Field>
 
 						{/* Email */}
-						<form.Field
-							name="email"
-							children={(field) => (
+						<form.Field name="email">
+							{(field) => (
 								<div>
 									<label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
 										Email
@@ -211,26 +219,27 @@ export default function EditContact() {
 									<input
 										type="email"
 										id="email"
-										value={field.state.value || ""}
+										value={field.state.value}
 										onChange={(e) => field.handleChange(e.target.value)}
 										onBlur={field.handleBlur}
-										className={`block w-full rounded-md shadow-sm ${
+										className={`block w-full rounded-md shadow-sm text-gray-900 ${
 											field.state.meta.errors.length > 0
 												? "border-red-300 focus:border-red-500 focus:ring-red-500"
 												: "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
 										} sm:text-sm`}
 									/>
 									{field.state.meta.errors.length > 0 && (
-										<p className="mt-1 text-sm text-red-600">{field.state.meta.errors.join(", ")}</p>
+										<p className="mt-1 text-sm text-red-600">
+											{field.state.meta.errors.join(", ")}
+										</p>
 									)}
 								</div>
 							)}
-						/>
+						</form.Field>
 
 						{/* Phone */}
-						<form.Field
-							name="phone"
-							children={(field) => (
+						<form.Field name="phone">
+							{(field) => (
 								<div>
 									<label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
 										Phone (optional)
@@ -238,21 +247,23 @@ export default function EditContact() {
 									<input
 										type="tel"
 										id="phone"
-										value={field.state.value || ""}
-										onChange={(e) => field.handleChange(e.target.value || null)}
+										value={field.state.value}
+										onChange={(e) => field.handleChange(e.target.value)}
 										onBlur={field.handleBlur}
-										className={`block w-full rounded-md shadow-sm ${
+										className={`block w-full rounded-md shadow-sm text-gray-900 ${
 											field.state.meta.errors.length > 0
 												? "border-red-300 focus:border-red-500 focus:ring-red-500"
 												: "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
 										} sm:text-sm`}
 									/>
 									{field.state.meta.errors.length > 0 && (
-										<p className="mt-1 text-sm text-red-600">{field.state.meta.errors.join(", ")}</p>
+										<p className="mt-1 text-sm text-red-600">
+											{field.state.meta.errors.join(", ")}
+										</p>
 									)}
 								</div>
 							)}
-						/>
+						</form.Field>
 
 						{/* Actions */}
 						<div className="flex gap-4 pt-4">

@@ -3,6 +3,7 @@ import { useForm } from "@tanstack/react-form"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { InferRequestType, InferResponseType } from "hono/client"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { insertContactSchema } from "../../workers/db/schema"
 import { ContactForm, ContactList, ContactStats, ErrorAlert, SearchBar } from "../components"
 import { extractError, rpcClient } from "../lib/hono-rpc-client"
@@ -72,6 +73,10 @@ export default function Home() {
 		onSuccess: () => {
 			// Invalidate and refetch contacts
 			queryClient.invalidateQueries({ queryKey: ["contacts"] })
+			toast.success("Contact created successfully!")
+		},
+		onError: (error) => {
+			toast.error(error.message || "Failed to create contact")
 		},
 	})
 
@@ -113,6 +118,10 @@ export default function Home() {
 		onSuccess: () => {
 			// Invalidate and refetch contacts
 			queryClient.invalidateQueries({ queryKey: ["contacts"] })
+			toast.success("Contact deleted successfully!")
+		},
+		onError: (error) => {
+			toast.error(error.message || "Failed to delete contact")
 		},
 		onSettled: (_data, _error, id) => {
 			// Remove from deleting set
@@ -158,12 +167,6 @@ export default function Home() {
 
 				{/* Error display */}
 				{error && <ErrorAlert error={error.message || "Failed to load contacts"} />}
-				{createContactMutation.error && (
-					<ErrorAlert error={createContactMutation.error.message || "Failed to create contact"} />
-				)}
-				{deleteContactMutation.error && (
-					<ErrorAlert error={deleteContactMutation.error.message || "Failed to delete contact"} />
-				)}
 
 				<div className="grid gap-8 md:grid-cols-2">
 					{/* Add Contact Form */}

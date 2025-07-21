@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useParams } from "react-router"
+import { toast } from "sonner"
 import { extractError, rpcClient } from "~/lib/hono-rpc-client"
 
 export default function ContactProfile() {
@@ -37,8 +38,12 @@ export default function ContactProfile() {
 		onSuccess: () => {
 			// Invalidate contacts list
 			queryClient.invalidateQueries({ queryKey: ["contacts"] })
+			toast.success("Contact deleted successfully!")
 			// Navigate back to home
 			navigate("/")
+		},
+		onError: (error) => {
+			toast.error(error.message || "Failed to delete contact")
 		},
 	})
 
