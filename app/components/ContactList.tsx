@@ -17,6 +17,7 @@ interface ContactListProps {
 	isLoading: boolean
 	isInitialLoad: boolean
 	isSearching: boolean
+	isPaginationLoading?: boolean
 	searchQuery: string
 	deletingIds: Set<string>
 	onDelete: (id: number) => void
@@ -27,6 +28,7 @@ export function ContactList({
 	isLoading,
 	isInitialLoad,
 	isSearching,
+	isPaginationLoading = false,
 	searchQuery,
 	deletingIds,
 	onDelete,
@@ -36,9 +38,9 @@ export function ContactList({
 			<div className="px-6 py-4 border-b border-gray-200">
 				<h2 className="text-xl font-semibold text-gray-800">Contacts</h2>
 			</div>
-			<div className="overflow-x-auto relative">
+			<div className="overflow-x-auto relative min-h-[400px]">
 				{/* Loading overlay for non-initial loads */}
-				{!isInitialLoad && (isLoading || isSearching) && (
+				{!isInitialLoad && (isLoading || isSearching || isPaginationLoading) && (
 					<div className="absolute inset-0 bg-white bg-opacity-75 z-10 flex items-center justify-center">
 						<div className="flex items-center space-x-2">
 							<svg
@@ -63,7 +65,13 @@ export function ContactList({
 									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 								/>
 							</svg>
-							<span className="text-gray-600">{isSearching ? "Searching..." : "Loading..."}</span>
+							<span className="text-gray-600">
+								{isSearching
+									? "Searching..."
+									: isPaginationLoading
+										? "Loading page..."
+										: "Loading..."}
+							</span>
 						</div>
 					</div>
 				)}

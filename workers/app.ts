@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator"
-import { eq, like, or } from "drizzle-orm"
+import { count, desc, eq, like, or } from "drizzle-orm"
 import { Hono } from "hono"
 import { createRequestHandler } from "react-router"
 import { z } from "zod"
@@ -45,42 +45,94 @@ api.use("*", async (c, next) => {
 	await next()
 })
 
+// Define pagination schema
+const paginationSchema = z.object({
+	page: z.coerce.number().int().min(1).default(1),
+	limit: z.coerce.number().int().min(1).max(100).default(10),
+})
+
 // Define contacts routes with chaining for RPC compatibility
 const contactsRoute = api
-	// List all contacts
-	.get("/contacts", async (c) => {
+	// List all contacts with pagination
+	.get("/contacts", zValidator("query", paginationSchema), async (c) => {
 		const db = c.get("db")
-		const allContacts = await db.select().from(contacts).orderBy(contacts.createdAt)
+		const { page, limit } = c.req.valid("query")
+		const offset = (page - 1) * limit
+
+		// Get total count
+		const [{ total }] = await db.select({ total: count() }).from(contacts)
+
+		// Get paginated results
+		const allContacts = await db
+			.select()
+			.from(contacts)
+			.orderBy(desc(contacts.createdAt))
+			.limit(limit)
+			.offset(offset)
+
+		// Calculate pagination metadata
+		const totalPages = Math.ceil(total / limit)
+		const hasNextPage = page < totalPages
+		const hasPreviousPage = page > 1
 
 		return c.json({
 			contacts: allContacts,
+			pagination: {
+				page,
+				limit,
+				total,
+				totalPages,
+				hasNextPage,
+				hasPreviousPage,
+			},
 		})
 	})
-	// Search contacts
+	// Search contacts with pagination
 	.get(
 		"/contacts/search",
-		zValidator("query", z.object({ q: z.string().optional() })),
+		zValidator("query", paginationSchema.extend({ q: z.string().optional() })),
 		async (c) => {
 			const db = c.get("db")
-			const { q } = c.req.valid("query")
+			const { q, page, limit } = c.req.valid("query")
+			const offset = (page - 1) * limit
 
-			const results = await (q
-				? db
-						.select()
-						.from(contacts)
-						.where(
-							or(
-								like(contacts.firstName, `%${q}%`),
-								like(contacts.lastName, `%${q}%`),
-								like(contacts.email, `%${q}%`),
-								like(contacts.phone, `%${q}%`),
-							),
-						)
-						.orderBy(contacts.createdAt)
-				: db.select().from(contacts).orderBy(contacts.createdAt))
+			// Build where clause
+			const whereClause = q
+				? or(
+						like(contacts.firstName, `%${q}%`),
+						like(contacts.lastName, `%${q}%`),
+						like(contacts.email, `%${q}%`),
+						like(contacts.phone, `%${q}%`),
+					)
+				: undefined
+
+			// Get total count for search results
+			const [{ total }] = await db.select({ total: count() }).from(contacts).where(whereClause)
+
+			// Get paginated search results
+			const results = await db
+				.select()
+				.from(contacts)
+				.where(whereClause)
+				.orderBy(desc(contacts.createdAt))
+				.limit(limit)
+				.offset(offset)
+
+			// Calculate pagination metadata
+			const totalPages = Math.ceil(total / limit)
+			const hasNextPage = page < totalPages
+			const hasPreviousPage = page > 1
 
 			return c.json({
 				contacts: results,
+				pagination: {
+					page,
+					limit,
+					total,
+					totalPages,
+					hasNextPage,
+					hasPreviousPage,
+				},
 			})
 		},
 	)
@@ -100,7 +152,11 @@ const contactsRoute = api
 				200,
 			)
 		} catch (error) {
-			if (error instanceof Error && (error.message.includes("UNIQUE constraint failed") || error.message.includes("duplicate key value"))) {
+			if (
+				error instanceof Error &&
+				(error.message.includes("UNIQUE constraint failed") ||
+					error.message.includes("duplicate key value"))
+			) {
 				return c.json({ error: "Email already exists" }, 400)
 			}
 			throw error

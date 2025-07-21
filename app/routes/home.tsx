@@ -1,16 +1,22 @@
-import { randFirstName, randLastName } from "@ngneat/falso"
 import { useForm } from "@tanstack/react-form"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { InferRequestType, InferResponseType } from "hono/client"
+import type { InferRequestType } from "hono/client"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { insertContactSchema } from "../../workers/db/schema"
-import { ContactForm, ContactList, ContactStats, ErrorAlert, SearchBar } from "../components"
+import {
+	ContactForm,
+	ContactList,
+	ContactStats,
+	ErrorAlert,
+	Pagination,
+	SearchBar,
+} from "../components"
+import { generateMockContact } from "../lib/generate-contact"
 import { extractError, rpcClient } from "../lib/hono-rpc-client"
 import type { Route } from "./+types/home"
 
 // Infer types from the API client
-type ContactsResponse = InferResponseType<typeof rpcClient.contacts.$get>
 type CreateContactRequest = InferRequestType<typeof rpcClient.contacts.$post>["json"]
 
 export function meta(_args: Route.MetaArgs) {
@@ -27,35 +33,51 @@ export default function Home() {
 	const [searchQuery, setSearchQuery] = useState("")
 	const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
 	const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+	const [currentPage, setCurrentPage] = useState(1)
+	const [previousPage, setPreviousPage] = useState(1)
 	const queryClient = useQueryClient()
 
 	// Debounce search query
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			setDebouncedSearchQuery(searchQuery)
+			// Reset to page 1 when search changes
+			setCurrentPage(1)
 		}, 300)
 
 		return () => clearTimeout(timer)
 	}, [searchQuery])
 
+	// Track when page changes
+	useEffect(() => {
+		setPreviousPage(currentPage)
+	}, [currentPage])
+
 	// Fetch contacts with React Query
-	const { data, isLoading, isInitialLoading, error } = useQuery({
-		queryKey: ["contacts", debouncedSearchQuery],
+	const { data, isLoading, isInitialLoading, error, isFetching } = useQuery({
+		queryKey: ["contacts", debouncedSearchQuery, currentPage],
 		queryFn: async () => {
 			const response = debouncedSearchQuery
-				? await rpcClient.contacts.search.$get({ query: { q: debouncedSearchQuery } })
-				: await rpcClient.contacts.$get()
+				? await rpcClient.contacts.search.$get({
+						query: { q: debouncedSearchQuery, page: currentPage.toString(), limit: "10" },
+					})
+				: await rpcClient.contacts.$get({ query: { page: currentPage.toString(), limit: "10" } })
 
 			if (!response.ok) {
 				throw new Error(await extractError(response))
 			}
 
-			const data = (await response.json()) as Awaited<ContactsResponse>
-			return data.contacts || []
+			return await response.json()
 		},
+		// Keep previous data while loading new page
+		placeholderData: (previousData) => previousData,
 	})
 
-	const contacts = data || []
+	const contacts = data?.contacts || []
+	const pagination = data?.pagination
+
+	// Determine if we're loading due to pagination change
+	const isPaginationLoading = isFetching && previousPage !== currentPage && !isInitialLoading
 
 	// Create contact mutation
 	const createContactMutation = useMutation({
@@ -138,26 +160,9 @@ export default function Home() {
 	}
 
 	const fillWithMockData = () => {
-		const firstName = randFirstName()
-		const lastName = randLastName()
-		// Remove any non-ASCII characters and generate a simple email
-		const cleanFirstName = firstName.toLowerCase().replace(/[^a-z]/g, "")
-		const cleanLastName = lastName.toLowerCase().replace(/[^a-z]/g, "")
-		const randomNum = Math.floor(Math.random() * 100)
-		const email = `${cleanFirstName}.${cleanLastName}${randomNum}@example.com`
-		// Generate phone number in format: 555-0123
-		const phoneDigits = Math.floor(Math.random() * 10000)
-			.toString()
-			.padStart(4, "0")
-		const phone = `555-${phoneDigits}`
-
+		const mockContact = generateMockContact()
 		// Reset form with new values to clear all errors and touched states
-		form.reset({
-			firstName,
-			lastName,
-			email,
-			phone,
-		} as CreateContactRequest)
+		form.reset(mockContact as CreateContactRequest)
 	}
 
 	return (
@@ -179,7 +184,7 @@ export default function Home() {
 							onSearchChange={setSearchQuery}
 							isSearching={isLoading && searchQuery !== ""}
 						/>
-						<ContactStats totalContacts={contacts.length} />
+						<ContactStats totalContacts={pagination?.total || 0} />
 					</div>
 				</div>
 
@@ -189,10 +194,25 @@ export default function Home() {
 					isLoading={isLoading}
 					isInitialLoad={isInitialLoading}
 					isSearching={isLoading && searchQuery !== ""}
+					isPaginationLoading={isPaginationLoading}
 					searchQuery={searchQuery}
 					deletingIds={deletingIds}
 					onDelete={handleDelete}
 				/>
+
+				{/* Pagination */}
+				{pagination && pagination.totalPages > 1 && (
+					<div className="mt-6">
+						<Pagination
+							currentPage={pagination.page}
+							totalPages={pagination.totalPages}
+							hasNextPage={pagination.hasNextPage}
+							hasPreviousPage={pagination.hasPreviousPage}
+							onPageChange={setCurrentPage}
+							isLoading={isFetching}
+						/>
+					</div>
+				)}
 			</div>
 		</div>
 	)

@@ -8,7 +8,11 @@ export default function ContactProfile() {
 	const navigate = useNavigate()
 	const queryClient = useQueryClient()
 
-	const { data: contact, isLoading, error } = useQuery({
+	const {
+		data: contact,
+		isLoading,
+		error,
+	} = useQuery({
 		queryKey: ["contact", id],
 		queryFn: async () => {
 			const response = await rpcClient.contacts[":id"].$get({
@@ -96,10 +100,10 @@ export default function ContactProfile() {
 						to="/"
 						className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
 					>
-						<svg 
-							className="mr-1 h-4 w-4" 
-							fill="none" 
-							stroke="currentColor" 
+						<svg
+							className="mr-1 h-4 w-4"
+							fill="none"
+							stroke="currentColor"
 							viewBox="0 0 24 24"
 							aria-hidden="true"
 						>

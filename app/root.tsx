@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
-import { lazy, Suspense, useState, useEffect } from "react"
 import { Toaster } from "sonner"
 import type { Route } from "./+types/root"
 import "./app.css"
